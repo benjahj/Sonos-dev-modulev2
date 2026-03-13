@@ -1,0 +1,29 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"id": "sonos-speakers",
+	"name": "sonos-speakers",
+	"shortname": "Sonos",
+	"description": "Control Sonos speakers — volume, source, line-in, playback",
+	"version": "1.2.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/bitfocus/companion-module-sonos-speakers.git",
+	"bugs": "https://github.com/bitfocus/companion-module-sonos-speakers/issues",
+	"maintainers": [
+		{
+			"name": "Benjamin Hald",
+			"email": "benjahj@gmail.com",
+			"github": "benjahj"
+		}
+	],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "1.6.0",
+		"entrypoint": "../dist/main.js"
+	},
+	"manufacturer": "Sonos",
+	"products": ["Speakers", "Play:1", "Play:3", "Play:5", "One", "Arc", "Beam", "Move", "Roam"],
+	"keywords": ["Audio", "Media", "Sonos", "Line-In", "Speaker"]
+}
+

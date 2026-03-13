@@ -1,0 +1,43 @@
+{
+	"name": "sonos-speakers",
+	"version": "1.2.0",
+	"main": "dist/main.js",
+	"type": "module",
+	"scripts": {
+		"build": "rimraf dist && yarn build:main",
+		"build:main": "tsc -p tsconfig.json",
+		"dev": "tsc -p tsconfig.json --watch",
+		"lint:raw": "eslint --ext .ts --ext .js --ignore-pattern dist --ignore-pattern pkg",
+		"lint": "yarn lint:raw .",
+		"dist": "yarn companion-module-build"
+	},
+	"author": "Benjamin Hald <benjahj@gmail.com> (https://github.com/benjahj)",
+	"license": "MIT",
+	"prettier": "@companion-module/tools/.prettierrc.json",
+	"lint-staged": {
+		"*.{css,json,md,scss}": [
+			"prettier --write"
+		],
+		"*.{ts,tsx,js,jsx}": [
+			"yarn lint:raw --fix"
+		]
+	},
+	"engines": {
+		"node": "^18"
+	},
+	"dependencies": {
+		"@companion-module/base": "~1.6",
+		"@svrooij/sonos": "^2.5.0"
+	},
+	"devDependencies": {
+		"@companion-module/tools": "^1.5.2",
+		"@types/node": "^18.19.3",
+		"rimraf": "^5.0.5",
+		"typescript": "~5.2"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bitfocus/companion-module-sonos-speakers.git"
+	}
+}
+
