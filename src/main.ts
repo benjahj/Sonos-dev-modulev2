@@ -152,6 +152,14 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 		this.checkFeedbacks()
 	}
 
+	private markDeviceOnline(device: SonosDevice): void {
+		if (!this.deviceState.offlineDevices.has(device.Uuid)) return
+		this.log('info', `Device "${this.deviceState.deviceNames.get(device.Uuid) ?? device.Name}" is back online`)
+		this.deviceState.offlineDevices.delete(device.Uuid)
+		this.updateStatus(InstanceStatus.Ok)
+		this.refreshAll()
+	}
+
 	private subscribeEvents(device: SonosDevice): void {
 		// Subscription errors → mark device as offline
 		device.Events.on(SonosEvents.SubscriptionError, () => {
@@ -160,6 +168,7 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 
 		// Transport state changes → refresh playing/paused/stopped/active feedbacks + variables
 		device.Events.on(SonosEvents.CurrentTransportState, () => {
+			this.markDeviceOnline(device)
 			this.checkFeedbacks(
 				FeedbackId.Playing,
 				FeedbackId.Paused,
@@ -171,23 +180,27 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 
 		// Group name changes → refresh presets and variables
 		device.Events.on(SonosEvents.GroupName, () => {
+			this.markDeviceOnline(device)
 			this.setPresetDefinitions(GetPresetsList(this.manager, this.deviceState))
 			updateVariables(this, this.manager, this.deviceState)
 		})
 
 		// Volume changes → refresh volume feedbacks and variables
 		device.Events.on(SonosEvents.Volume, () => {
+			this.markDeviceOnline(device)
 			this.checkFeedbacks(FeedbackId.Volume)
 			updateVariables(this, this.manager, this.deviceState)
 		})
 
 		// Mute changes → refresh mute feedback
 		device.Events.on(SonosEvents.Mute, () => {
+			this.markDeviceOnline(device)
 			this.checkFeedbacks(FeedbackId.Mute)
 		})
 
 		// Track URI changes → refresh source feedbacks and variables
 		device.Events.on(SonosEvents.CurrentTrackUri, () => {
+			this.markDeviceOnline(device)
 			this.checkFeedbacks(
 				FeedbackId.SourceIsLineIn,
 				FeedbackId.SourceIsQueue,
