@@ -1,5 +1,6 @@
 import { SonosManager } from '@svrooij/sonos'
 import { DeviceConfig } from './config.js'
+import type { DeviceState } from './main.js'
 import { CompanionVariableDefinition, CompanionVariableValues, InstanceBase } from '@companion-module/base'
 
 /**
@@ -34,7 +35,7 @@ export function sourceFromUri(uri: string | undefined): string {
 	return 'stream'
 }
 
-export function updateVariables(instance: InstanceBase<DeviceConfig>, manager: SonosManager): void {
+export function updateVariables(instance: InstanceBase<DeviceConfig>, manager: SonosManager, state: DeviceState): void {
 	function numToString(val: number | undefined): string {
 		return val === undefined ? '-' : `${val}%`
 	}
@@ -42,66 +43,70 @@ export function updateVariables(instance: InstanceBase<DeviceConfig>, manager: S
 	const newValues: CompanionVariableValues = {}
 
 	manager.Devices.forEach((dev) => {
+		const offline = state.offlineDevices.has(dev.Uuid)
+		const cachedName = state.deviceNames.get(dev.Uuid) ?? dev.Name
+
 		const transportState = dev.CurrentTransportState
 		const isActive =
-			transportState === 'PLAYING' || transportState === 'TRANSITIONING'
+			!offline && (transportState === 'PLAYING' || transportState === 'TRANSITIONING')
 		// A coordinator is a device that has at least one other device following it
-		const isCoordinator = manager.Devices.some(
+		const isCoordinator = !offline && manager.Devices.some(
 			(d) => d.Uuid !== dev.Uuid && d.CurrentTrackUri?.includes(dev.Uuid),
 		)
 
-		newValues[`device.${dev.Uuid}.name`] = dev.Name
+		newValues[`device.${dev.Uuid}.name`] = offline ? `${cachedName}/offline` : cachedName
 		newValues[`device.${dev.Uuid}.group`] = dev.GroupName || ''
-		newValues[`device.${dev.Uuid}.volume`] = numToString(dev.Volume)
+		newValues[`device.${dev.Uuid}.volume`] = offline ? '-' : numToString(dev.Volume)
 		newValues[`device.${dev.Uuid}.streamUri`] = dev.CurrentTrackUri ?? ''
-		newValues[`device.${dev.Uuid}.source`] = sourceFromUri(dev.CurrentTrackUri)
-		newValues[`device.${dev.Uuid}.status`] = isActive ? 'active' : 'inactive'
-		newValues[`device.${dev.Uuid}.transportState`] = transportState ?? 'STOPPED'
+		newValues[`device.${dev.Uuid}.source`] = offline ? 'unknown' : sourceFromUri(dev.CurrentTrackUri)
+		newValues[`device.${dev.Uuid}.status`] = offline ? 'offline' : (isActive ? 'active' : 'inactive')
+		newValues[`device.${dev.Uuid}.transportState`] = offline ? 'STOPPED' : (transportState ?? 'STOPPED')
 		newValues[`device.${dev.Uuid}.isCoordinator`] = isCoordinator ? 'true' : 'false'
 	})
 
 	instance.setVariableValues(newValues)
 }
 
-export function InitVariables(instance: InstanceBase<DeviceConfig>, manager: SonosManager): void {
+export function InitVariables(instance: InstanceBase<DeviceConfig>, manager: SonosManager, state: DeviceState): void {
 	const variables: CompanionVariableDefinition[] = []
 
 	manager.Devices.forEach((dev) => {
+		const cachedName = state.deviceNames.get(dev.Uuid) ?? dev.Name
 		variables.push({
-			name: `Device Name (${dev.Name})`,
+			name: `Device Name (${cachedName})`,
 			variableId: `device.${dev.Uuid}.name`,
 		})
 		variables.push({
-			name: `Device Group (${dev.Name})`,
+			name: `Device Group (${cachedName})`,
 			variableId: `device.${dev.Uuid}.group`,
 		})
 		variables.push({
-			name: `Device Volume (${dev.Name})`,
+			name: `Device Volume (${cachedName})`,
 			variableId: `device.${dev.Uuid}.volume`,
 		})
 		variables.push({
-			name: `Device Stream URI (${dev.Name})`,
+			name: `Device Stream URI (${cachedName})`,
 			variableId: `device.${dev.Uuid}.streamUri`,
 		})
 		variables.push({
-			name: `Device Source (${dev.Name}) - line-in, tv, queue, radio, stream, group, unknown`,
+			name: `Device Source (${cachedName}) - line-in, tv, queue, radio, stream, group, unknown`,
 			variableId: `device.${dev.Uuid}.source`,
 		})
 		variables.push({
-			name: `Device Status (${dev.Name}) - active or inactive`,
+			name: `Device Status (${cachedName}) - active, inactive, or offline`,
 			variableId: `device.${dev.Uuid}.status`,
 		})
 		variables.push({
-			name: `Device Transport State (${dev.Name}) - PLAYING, PAUSED_PLAYBACK, STOPPED, TRANSITIONING`,
+			name: `Device Transport State (${cachedName}) - PLAYING, PAUSED_PLAYBACK, STOPPED, TRANSITIONING`,
 			variableId: `device.${dev.Uuid}.transportState`,
 		})
 		variables.push({
-			name: `Device Is Coordinator (${dev.Name}) - true if leading a group`,
+			name: `Device Is Coordinator (${cachedName}) - true if leading a group`,
 			variableId: `device.${dev.Uuid}.isCoordinator`,
 		})
 	})
 
 	instance.setVariableDefinitions(variables)
-	updateVariables(instance, manager)
+	updateVariables(instance, manager, state)
 }
 

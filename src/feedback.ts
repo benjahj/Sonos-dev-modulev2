@@ -1,5 +1,6 @@
 import type { SonosDevice, SonosManager } from '@svrooij/sonos'
 import { DevicePicker, VolumePicker } from './choices.js'
+import type { DeviceState } from './main.js'
 import { sourceFromUri } from './variables.js'
 import {
 	combineRgb,
@@ -44,7 +45,7 @@ function VolumeComparitorPicker(): CompanionInputFieldDropdown {
 	}
 }
 
-export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefinitions {
+export function GetFeedbacksList(manager: SonosManager, state: DeviceState): CompanionFeedbackDefinitions {
 	const feedbacks: CompanionFeedbackDefinitions = {}
 	const devices = manager.Devices
 
@@ -55,7 +56,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device playing',
 		type: 'boolean',
 		description: 'If the device is playing, change colors of the bank',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(0, 255, 0),
@@ -70,7 +71,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device paused',
 		type: 'boolean',
 		description: 'If the device is paused, change colors of the bank',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(255, 255, 0),
@@ -85,7 +86,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device stopped',
 		type: 'boolean',
 		description: 'If the device is stopped, change colors of the bank',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(255, 255, 255),
 			bgcolor: combineRgb(255, 0, 0),
@@ -100,7 +101,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device muted',
 		type: 'boolean',
 		description: 'If the device is muted, change style of the bank',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(255, 255, 255),
 			bgcolor: combineRgb(255, 0, 0),
@@ -115,7 +116,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device volume',
 		type: 'boolean',
 		description: 'If the device volume matches, change colors of the bank',
-		options: [DevicePicker(devices), VolumeComparitorPicker(), VolumePicker()],
+		options: [DevicePicker(devices, state), VolumeComparitorPicker(), VolumePicker()],
 		defaultStyle: {
 			color: combineRgb(255, 255, 255),
 			bgcolor: combineRgb(255, 0, 0),
@@ -132,7 +133,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Device active (playing or transitioning)',
 		type: 'boolean',
 		description: 'True when the speaker is actively playing or transitioning',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(0, 200, 255),
@@ -147,7 +148,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Source is Line-In',
 		type: 'boolean',
 		description: 'True when the speaker is playing from its Line-In input',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(255, 165, 0),
@@ -162,7 +163,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Source is Queue',
 		type: 'boolean',
 		description: 'True when the speaker is playing from its local queue',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(0, 255, 150),
@@ -178,7 +179,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		type: 'boolean',
 		description: 'True when the current source type matches the selected option',
 		options: [
-			DevicePicker(devices),
+			DevicePicker(devices, state),
 			{
 				type: 'dropdown',
 				label: 'Source',
@@ -208,7 +209,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Speaker is in a group',
 		type: 'boolean',
 		description: 'True when the speaker is following another coordinator (member of a group)',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(255, 255, 255),
 			bgcolor: combineRgb(80, 80, 200),
@@ -223,7 +224,7 @@ export function GetFeedbacksList(manager: SonosManager): CompanionFeedbackDefini
 		name: 'Speaker is group coordinator',
 		type: 'boolean',
 		description: 'True when the speaker is leading a group (other speakers are following it)',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		defaultStyle: {
 			color: combineRgb(0, 0, 0),
 			bgcolor: combineRgb(0, 200, 200),

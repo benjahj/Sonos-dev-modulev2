@@ -1,6 +1,8 @@
 import type { SonosDevice, SonosManager } from '@svrooij/sonos'
 import { ActionId, PlayPauseToggle } from './actions.js'
 import { FeedbackId, VolumeComparitor } from './feedback.js'
+import { deviceLabel } from './choices.js'
+import type { DeviceState } from './main.js'
 import {
 	combineRgb,
 	type CompanionPresetDefinitions,
@@ -9,6 +11,7 @@ import {
 
 function VolumeDelta(
 	device: SonosDevice,
+	displayName: string,
 	actionId: ActionId,
 	volumeFeedback: FeedbackId,
 	delta: number,
@@ -16,10 +19,10 @@ function VolumeDelta(
 	const deltaStr = delta > 0 ? `+${delta}` : `${delta}`
 	return {
 		category: 'Volume',
-		name: `${device.Name} Volume ${deltaStr}%`,
+		name: `${displayName} Volume ${deltaStr}%`,
 		type: 'button',
 		style: {
-			text: `${device.Name}\\n${deltaStr}%`,
+			text: `${displayName}\\n${deltaStr}%`,
 			size: 'auto',
 			color: combineRgb(255, 255, 255),
 			bgcolor: combineRgb(0, 0, 0),
@@ -47,17 +50,18 @@ function VolumeDelta(
 	}
 }
 
-export function GetPresetsList(manager: SonosManager): CompanionPresetDefinitions {
+export function GetPresetsList(manager: SonosManager, state: DeviceState): CompanionPresetDefinitions {
 	const presets: CompanionPresetDefinitions = {}
 
 	manager.Devices.forEach((device) => {
+		const name = deviceLabel(device, state)
 		// --- Volume presets ---
 		presets[`volume_100_${device.Uuid}`] = {
 			category: 'Volume',
-			name: `${device.Name} Volume 100%`,
+			name: `${name} Volume 100%`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\n100%`,
+				text: `${name}\\n100%`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -70,18 +74,18 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 				},
 			],
 		}
-		presets[`volume_+5_${device.Uuid}`] = VolumeDelta(device, ActionId.VolumeDelta, FeedbackId.Volume, +5)
-		presets[`volume_+1_${device.Uuid}`] = VolumeDelta(device, ActionId.VolumeDelta, FeedbackId.Volume, +1)
-		presets[`volume_-5_${device.Uuid}`] = VolumeDelta(device, ActionId.VolumeDelta, FeedbackId.Volume, -5)
-		presets[`volume_-1_${device.Uuid}`] = VolumeDelta(device, ActionId.VolumeDelta, FeedbackId.Volume, -1)
+		presets[`volume_+5_${device.Uuid}`] = VolumeDelta(device, name, ActionId.VolumeDelta, FeedbackId.Volume, +5)
+		presets[`volume_+1_${device.Uuid}`] = VolumeDelta(device, name, ActionId.VolumeDelta, FeedbackId.Volume, +1)
+		presets[`volume_-5_${device.Uuid}`] = VolumeDelta(device, name, ActionId.VolumeDelta, FeedbackId.Volume, -5)
+		presets[`volume_-1_${device.Uuid}`] = VolumeDelta(device, name, ActionId.VolumeDelta, FeedbackId.Volume, -1)
 
 		// --- Mute preset ---
 		presets[`mute_${device.Uuid}`] = {
 			category: 'Volume',
-			name: `${device.Name} Mute`,
+			name: `${name} Mute`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nMute`,
+				text: `${name}\\nMute`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -104,10 +108,10 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 		// --- Play/Pause preset ---
 		presets[`play_pause_${device.Uuid}`] = {
 			category: 'Playback',
-			name: `${device.Name} Play/Pause`,
+			name: `${name} Play/Pause`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nP/P`,
+				text: `${name}\\nP/P`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -140,10 +144,10 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 		// --- Line-In source preset ---
 		presets[`line_in_${device.Uuid}`] = {
 			category: 'Source',
-			name: `${device.Name} Line-In`,
+			name: `${name} Line-In`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nLine-In`,
+				text: `${name}\\nLine-In`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -166,10 +170,10 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 		// --- Queue source preset ---
 		presets[`queue_${device.Uuid}`] = {
 			category: 'Source',
-			name: `${device.Name} Queue`,
+			name: `${name} Queue`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nQueue`,
+				text: `${name}\\nQueue`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -192,10 +196,10 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 		// --- Leave group preset ---
 		presets[`leave_group_${device.Uuid}`] = {
 			category: 'Groups',
-			name: `${device.Name} Leave Group`,
+			name: `${name} Leave Group`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nLeave Group`,
+				text: `${name}\\nLeave Group`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -218,10 +222,10 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 		// --- Group Line-In preset (coordinator button) ---
 		presets[`group_line_in_${device.Uuid}`] = {
 			category: 'Groups',
-			name: `${device.Name} Group Line-In`,
+			name: `${name} Group Line-In`,
 			type: 'button',
 			style: {
-				text: `${device.Name}\\nGroup\\nLine-In`,
+				text: `${name}\\nGroup\\nLine-In`,
 				size: 'auto',
 				color: combineRgb(255, 255, 255),
 				bgcolor: combineRgb(0, 0, 0),
@@ -244,14 +248,16 @@ export function GetPresetsList(manager: SonosManager): CompanionPresetDefinition
 
 	// --- Join group presets: one button per speaker pair ---
 	manager.Devices.forEach((joiner) => {
+		const joinerName = deviceLabel(joiner, state)
 		manager.Devices.forEach((coordinator) => {
 			if (joiner.Uuid === coordinator.Uuid) return
+			const coordName = deviceLabel(coordinator, state)
 			presets[`join_${joiner.Uuid}_to_${coordinator.Uuid}`] = {
 				category: 'Groups',
-				name: `${joiner.Name} → join ${coordinator.Name}`,
+				name: `${joinerName} → join ${coordName}`,
 				type: 'button',
 				style: {
-					text: `${joiner.Name}\\n→ ${coordinator.Name}`,
+					text: `${joinerName}\\n→ ${coordName}`,
 					size: 'auto',
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(30, 30, 80),

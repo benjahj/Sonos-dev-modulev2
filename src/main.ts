@@ -7,10 +7,24 @@ import { InitVariables, updateVariables } from './variables.js'
 import { InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
 import { UpgradeScripts } from './upgrades.js'
 
+export interface DeviceState {
+	/** Original device names cached at discovery time (UUID → Name) */
+	deviceNames: Map<string, string>
+	/** Known device IPs cached at discovery time (UUID → host) */
+	knownHosts: Map<string, string>
+	/** UUIDs of devices currently detected as offline */
+	offlineDevices: Set<string>
+}
+
 class ControllerInstance extends InstanceBase<DeviceConfig> {
 	private readonly manager = new SonosManager()
 	private initDone = false
 	private config: DeviceConfig = {}
+	public readonly deviceState: DeviceState = {
+		deviceNames: new Map(),
+		knownHosts: new Map(),
+		offlineDevices: new Set(),
+	}
 
 	// Override base types to make types stricter
 	public checkFeedbacks(...feedbackTypes: FeedbackId[]): void {
@@ -40,26 +54,62 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 		}
 
 		this.initDone = false
-		this.manager
-			.InitializeFromDevice(this.config.host || '')
-			.then(() => {
-				this.updateStatus(InstanceStatus.Ok)
-				this.initDone = true
 
-				// Subscribe to events for all discovered devices
-				this.manager.Devices.forEach((d) => this.subscribeEvents(d))
+		// Build candidate list: configured host first, then all previously known hosts
+		const candidates: string[] = []
+		if (this.config.host) candidates.push(this.config.host)
+		for (const host of this.deviceState.knownHosts.values()) {
+			if (!candidates.includes(host)) candidates.push(host)
+		}
 
-				InitVariables(this, this.manager)
-				this.setPresetDefinitions(GetPresetsList(this.manager))
-				this.setActionDefinitions(GetActionsList(this.manager))
-				this.setFeedbackDefinitions(GetFeedbacksList(this.manager))
+		const success = await this.tryInitializeFromHosts(candidates)
+		if (!success) {
+			this.manager.CancelSubscription()
+			this.updateStatus(InstanceStatus.UnknownError, 'All Sonos devices are unreachable')
+		}
+	}
 
-				this.checkFeedbacks()
-			})
-			.catch((e) => {
-				this.manager.CancelSubscription()
-				this.updateStatus(InstanceStatus.UnknownError, `Load manager failed: ${e}`)
-			})
+	/**
+	 * Try initializing the manager from a list of candidate IPs.
+	 * Returns true on first success, false if all fail.
+	 */
+	private async tryInitializeFromHosts(hosts: string[]): Promise<boolean> {
+		for (const host of hosts) {
+			try {
+				await this.manager.InitializeFromDevice(host)
+				this.onManagerReady()
+				return true
+			} catch (e) {
+				this.log('debug', `Discovery via ${host} failed: ${e}`)
+				try { this.manager.CancelSubscription() } catch (_) { /* ignore */ }
+			}
+		}
+		return false
+	}
+
+	/**
+	 * Called after the manager has successfully discovered the Sonos network.
+	 */
+	private onManagerReady(): void {
+		this.updateStatus(InstanceStatus.Ok)
+		this.initDone = true
+
+		// Cache original device names, IPs, and clear offline state
+		this.deviceState.offlineDevices.clear()
+		this.manager.Devices.forEach((d) => {
+			this.deviceState.deviceNames.set(d.Uuid, d.Name)
+			this.deviceState.knownHosts.set(d.Uuid, d.Host)
+		})
+
+		// Subscribe to events for all discovered devices
+		this.manager.Devices.forEach((d) => this.subscribeEvents(d))
+
+		InitVariables(this, this.manager, this.deviceState)
+		this.setPresetDefinitions(GetPresetsList(this.manager, this.deviceState))
+		this.setActionDefinitions(GetActionsList(this, this.manager, this.deviceState))
+		this.setFeedbackDefinitions(GetFeedbacksList(this.manager, this.deviceState))
+
+		this.checkFeedbacks()
 	}
 
 	/**
@@ -80,7 +130,34 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 		}
 	}
 
+	private markDeviceOffline(device: SonosDevice): void {
+		if (this.deviceState.offlineDevices.has(device.Uuid)) return
+		this.log('warn', `Device "${this.deviceState.deviceNames.get(device.Uuid) ?? device.Name}" went offline`)
+		this.deviceState.offlineDevices.add(device.Uuid)
+
+		// Only set module-level error when ALL discovered devices are offline
+		const allOffline = this.manager.Devices.every((d) => this.deviceState.offlineDevices.has(d.Uuid))
+		if (allOffline) {
+			this.updateStatus(InstanceStatus.ConnectionFailure, 'All Sonos devices are offline')
+		}
+
+		this.refreshAll()
+	}
+
+	private refreshAll(): void {
+		InitVariables(this, this.manager, this.deviceState)
+		this.setPresetDefinitions(GetPresetsList(this.manager, this.deviceState))
+		this.setActionDefinitions(GetActionsList(this, this.manager, this.deviceState))
+		this.setFeedbackDefinitions(GetFeedbacksList(this.manager, this.deviceState))
+		this.checkFeedbacks()
+	}
+
 	private subscribeEvents(device: SonosDevice): void {
+		// Subscription errors → mark device as offline
+		device.Events.on(SonosEvents.SubscriptionError, () => {
+			this.markDeviceOffline(device)
+		})
+
 		// Transport state changes → refresh playing/paused/stopped/active feedbacks + variables
 		device.Events.on(SonosEvents.CurrentTransportState, () => {
 			this.checkFeedbacks(
@@ -89,19 +166,19 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 				FeedbackId.Stopped,
 				FeedbackId.Active,
 			)
-			updateVariables(this, this.manager)
+			updateVariables(this, this.manager, this.deviceState)
 		})
 
 		// Group name changes → refresh presets and variables
 		device.Events.on(SonosEvents.GroupName, () => {
-			this.setPresetDefinitions(GetPresetsList(this.manager))
-			updateVariables(this, this.manager)
+			this.setPresetDefinitions(GetPresetsList(this.manager, this.deviceState))
+			updateVariables(this, this.manager, this.deviceState)
 		})
 
 		// Volume changes → refresh volume feedbacks and variables
 		device.Events.on(SonosEvents.Volume, () => {
 			this.checkFeedbacks(FeedbackId.Volume)
-			updateVariables(this, this.manager)
+			updateVariables(this, this.manager, this.deviceState)
 		})
 
 		// Mute changes → refresh mute feedback
@@ -118,7 +195,7 @@ class ControllerInstance extends InstanceBase<DeviceConfig> {
 				FeedbackId.InGroup,
 				FeedbackId.IsGroupCoordinator,
 			)
-			updateVariables(this, this.manager)
+			updateVariables(this, this.manager, this.deviceState)
 		})
 	}
 }

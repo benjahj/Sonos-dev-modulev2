@@ -1,5 +1,6 @@
 import type { CompanionInputFieldDropdown, CompanionInputFieldNumber } from '@companion-module/base'
 import type { SonosDevice } from '@svrooij/sonos'
+import type { DeviceState } from './main.js'
 
 export const MutedPicker: CompanionInputFieldDropdown = {
 	type: 'dropdown',
@@ -13,10 +14,16 @@ export const MutedPicker: CompanionInputFieldDropdown = {
 	],
 }
 
-export function DevicePicker(devices: SonosDevice[]): CompanionInputFieldDropdown {
+/** Resolve the display name for a device, using the cached original name and appending /offline when needed. */
+export function deviceLabel(device: SonosDevice, state: DeviceState): string {
+	const name = state.deviceNames.get(device.Uuid) ?? device.Name
+	return state.offlineDevices.has(device.Uuid) ? `${name}/offline` : name
+}
+
+export function DevicePicker(devices: SonosDevice[], state: DeviceState): CompanionInputFieldDropdown {
 	const choices = devices.map((d) => ({
 		id: d.Uuid,
-		label: d.Name,
+		label: deviceLabel(d, state),
 	}))
 
 	return {
@@ -32,10 +39,10 @@ export function DevicePicker(devices: SonosDevice[]): CompanionInputFieldDropdow
  * Picker for selecting a group coordinator.
  * Shows all discovered devices — any device can act as a group coordinator.
  */
-export function GroupCoordinatorPicker(devices: SonosDevice[]): CompanionInputFieldDropdown {
+export function GroupCoordinatorPicker(devices: SonosDevice[], state: DeviceState): CompanionInputFieldDropdown {
 	const choices = devices.map((d) => ({
 		id: d.Uuid,
-		label: d.Name,
+		label: deviceLabel(d, state),
 	}))
 
 	return {

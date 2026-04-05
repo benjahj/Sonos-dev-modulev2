@@ -1,9 +1,11 @@
 import type { SonosDevice, SonosManager } from '@svrooij/sonos'
 import { DevicePicker, GroupCoordinatorPicker, MutedPicker, VolumePicker } from './choices.js'
+import type { DeviceState } from './main.js'
 import type {
 	CompanionActionDefinitions,
 	CompanionActionEvent,
 	CompanionInputFieldNumber,
+	InstanceBase,
 } from '@companion-module/base'
 
 export enum PlayPauseToggle {
@@ -41,11 +43,21 @@ function VolumeDeltaPicker(): CompanionInputFieldNumber {
 	}
 }
 
-export function GetActionsList(manager: SonosManager): CompanionActionDefinitions {
+export function GetActionsList(instance: InstanceBase<any>, manager: SonosManager, state: DeviceState): CompanionActionDefinitions {
 	const devices = manager.Devices
 
 	const getDevice = (action: CompanionActionEvent): SonosDevice | undefined =>
 		manager.Devices.find((d) => d.Uuid === action.options.device)
+
+	/** Returns true if the target UUID is offline — logs a warning and should abort the action. */
+	const isOffline = (uuid: string | undefined): boolean => {
+		if (uuid && state.offlineDevices.has(uuid)) {
+			const name = state.deviceNames.get(uuid) ?? uuid
+			instance.log('warn', `Action skipped: "${name}" is offline / unavailable`)
+			return true
+		}
+		return false
+	}
 
 	const getOptInt = (action: CompanionActionEvent, key: string): number => {
 		const val = Number(action.options[key])
@@ -60,7 +72,7 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.PlayPause] = {
 		name: 'Play/pause',
 		options: [
-			DevicePicker(devices),
+			DevicePicker(devices, state),
 			{
 				type: 'dropdown',
 				label: 'Mode',
@@ -74,6 +86,7 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 			},
 		],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				switch (action.options.mode) {
@@ -93,8 +106,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 
 	actions[ActionId.NextTrack] = {
 		name: 'Next Track',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.Next().catch((e) => { throw new Error(`Sonos: NextTrack failed: ${e}`) })
@@ -104,8 +118,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 
 	actions[ActionId.PreviousTrack] = {
 		name: 'Previous Track',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.Previous().catch((e) => { throw new Error(`Sonos: PreviousTrack failed: ${e}`) })
@@ -115,8 +130,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 
 	actions[ActionId.Mute] = {
 		name: 'Set Muted',
-		options: [DevicePicker(devices), MutedPicker],
+		options: [DevicePicker(devices, state), MutedPicker],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				let muted = action.options.muted === 'mute'
@@ -134,8 +150,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 
 	actions[ActionId.Volume] = {
 		name: 'Set Volume',
-		options: [DevicePicker(devices), VolumePicker()],
+		options: [DevicePicker(devices, state), VolumePicker()],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.SetVolume(getOptInt(action, 'volume')).catch((e) => {
@@ -147,8 +164,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 
 	actions[ActionId.VolumeDelta] = {
 		name: 'Adjust Volume',
-		options: [DevicePicker(devices), VolumeDeltaPicker()],
+		options: [DevicePicker(devices, state), VolumeDeltaPicker()],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.SetRelativeVolume(getOptInt(action, 'delta')).catch((e) => {
@@ -161,7 +179,7 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.LoadStreamUri] = {
 		name: 'Load Stream URI',
 		options: [
-			DevicePicker(devices),
+			DevicePicker(devices, state),
 			{
 				type: 'textinput',
 				label: 'Stream URI',
@@ -189,6 +207,7 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 			},
 		],
 		callback: async (action, context) => {
+			if (isOffline(String(action.options.device))) return
 			const streamUri = await context.parseVariablesInString(String(action.options.streamUri))
 			const streamMetadata = await context.parseVariablesInString(String(action.options.streamMetadata ?? ''))
 			const device = getDevice(action)
@@ -214,8 +233,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.SelectLineIn] = {
 		name: 'Select Line-In Source',
 		description: 'Switch speaker audio input to its Line-In (analog input)',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.SwitchToLineIn().catch((e) => {
@@ -228,8 +248,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.SelectQueue] = {
 		name: 'Select Queue Source',
 		description: 'Switch speaker audio source back to its local queue',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.SwitchToQueue().catch((e) => {
@@ -245,10 +266,11 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 		name: 'Join Group',
 		description: 'Add a speaker to another speaker\'s group',
 		options: [
-			{ ...DevicePicker(devices), label: 'Speaker to add' },
-			GroupCoordinatorPicker(devices),
+			{ ...DevicePicker(devices, state), label: 'Speaker to add' },
+			GroupCoordinatorPicker(devices, state),
 		],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device)) || isOffline(String(action.options.coordinator))) return
 			const device = getDevice(action)
 			const coordinator = manager.Devices.find((d) => d.Uuid === action.options.coordinator)
 			if (device && coordinator) {
@@ -262,8 +284,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.LeaveGroup] = {
 		name: 'Leave Group',
 		description: 'Remove a speaker from its current group (goes standalone)',
-		options: [DevicePicker(devices)],
+		options: [DevicePicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.device))) return
 			const device = getDevice(action)
 			if (device) {
 				await device.AVTransportService.BecomeCoordinatorOfStandaloneGroup().catch((e: unknown) => {
@@ -276,8 +299,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.GroupVolume] = {
 		name: 'Set Group Volume',
 		description: 'Set the volume for all speakers in the group (send to coordinator)',
-		options: [GroupCoordinatorPicker(devices), VolumePicker()],
+		options: [GroupCoordinatorPicker(devices, state), VolumePicker()],
 		callback: async (action) => {
+			if (isOffline(String(action.options.coordinator))) return
 			const coordinator = manager.Devices.find((d) => d.Uuid === action.options.coordinator)
 			if (coordinator) {
 				await coordinator.GroupRenderingControlService.SetGroupVolume({
@@ -293,8 +317,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.GroupSelectLineIn] = {
 		name: 'Group: Select Line-In Source',
 		description: 'Switch the entire group to the coordinator\'s Line-In input',
-		options: [GroupCoordinatorPicker(devices)],
+		options: [GroupCoordinatorPicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.coordinator))) return
 			const coordinator = manager.Devices.find((d) => d.Uuid === action.options.coordinator)
 			if (coordinator) {
 				await coordinator.SwitchToLineIn().catch((e) => {
@@ -307,8 +332,9 @@ export function GetActionsList(manager: SonosManager): CompanionActionDefinition
 	actions[ActionId.GroupSelectQueue] = {
 		name: 'Group: Select Queue Source',
 		description: 'Switch the entire group back to the coordinator\'s local queue',
-		options: [GroupCoordinatorPicker(devices)],
+		options: [GroupCoordinatorPicker(devices, state)],
 		callback: async (action) => {
+			if (isOffline(String(action.options.coordinator))) return
 			const coordinator = manager.Devices.find((d) => d.Uuid === action.options.coordinator)
 			if (coordinator) {
 				await coordinator.SwitchToQueue().catch((e) => {
